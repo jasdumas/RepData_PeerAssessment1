@@ -1,0 +1,96 @@
+---
+title: "Exploring severe weather events with the NOAA Storm database"
+author: "Jasmine Dumas"
+date: "September 21, 2014"
+output: html_document
+---
+
+**Synopsis**
+---
+The basic goal of this assignment is to explore the NOAA Storm Database and answer some basic questions about severe weather events. The database will be analyzed to answer two questions: 
+1. Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
+2. Across the United States, which types of events have the greatest economic consequences?
+
+**Data Processing**
+---
+The dataset should be downloaded from the url link and be placed in the working directory. The data should be assigned a variable to be read into to utilize the read.table function. The data and the documentation are provided here:
+
+Data set (https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2)
+Storm Data Documentation (https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf)
+FAQ (https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf)
+
+```{r}
+library(R.utils)
+library(ggplot2)
+library(reshape2)
+library(xtable)
+library(knitr)
+```
+
+```{r}
+url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+temp <- tempfile()
+file <- download.file(url, temp, method ="curl")
+con <- unzip(temp, file, files = NULL)
+datedownload <- date()
+```
+A preview of the data:
+```{r}
+head(data)
+names(data)
+```
+
+Lets take a look at how many of each climatic event types has occured most freqently. *Note: there are 985 different types of recorded event types.* We will examine the dataset and assign the top 20 most fatal weather events. We will use the aggregate function to collapse the listings into our desired info needed to answer our given questions
+```{r}
+data.fatal <-aggregate(data$FATALITIES, by=list(data$EVTYPE))
+data.fatal = subset(data.fatal, data.fatal$x>0)
+data.fatal <- data.fatal[order(data.fatal$x, decreasing = TRUE), ]
+names(data.fatal)[1]="EVENT"
+names(data.fatal)[2]="FATALITIES"
+rownames(data.fatal)<-NULL
+data.fatal <- data.fatal[1:20,]
+data.injur <-aggregate(data$INJURIES, by=list(data$EVTYPE))
+data.injur = subset(data.injur, data.injur$x>0)
+data.injur <- data.injur[order(data.injur$x, decreasing = TRUE), ]
+names(data.injur)[1]="EVENT"
+names(data.injur)[2]="INJURIES"
+rownames(data.injur)<-NULL
+data.injur <- data.injur[1:20,]
+data.total=merge(data.fatal,data.injur, by.x="EVENT")
+data.total <- data.total[order(data.total$FATALITIES,data.total$INJURIES, decreasing = TRUE), ]
+rownames(data.total)<-NULL
+data.total.M <- melt(data.total)
+data.total.M <- data.total.M[order(data.total.M$value, decreasing = TRUE), ]
+rownames(data.total.M)<-NULL
+data.econ <-aggregate(cbind(data$PROPDMG,data$CROPDMG), by=list(data$EVTYPE))
+names(data.econ)[1]="EVENT"
+names(data.econ)[2]="PROPDMG"
+names(data.econ)[3]="CROPDMG"
+data.econ <- subset(data.econ, CROPDMG > 0 | PROPDMG > 0)
+data.econ <- data.econ[order(data.econ$PROPDMG,data.econ$CROPDMG, decreasing = TRUE), ]
+data.econ <- data.econ[1:20,]
+rownames(data.econ)<-NULL
+data.econ.M <- melt(data.econ)
+data.econ.M <- data.econ.M[order(data.econ.M$value, decreasing = TRUE), ]
+```
+
+**Results**
+---
+
+Tornados present to be the most harmful in regards to population health
+```{r}
+data.total$total <- with(data.total, FATALITIES + INJURIES)
+names(data.total) <- c("Event", "Fatalities", "Injuries", "Total")
+kable(data.total)
+```
+
+```{r}
+barplot(data.total$Total, xlab ="Event", main="Weather events leading to the most damage to human health", pch =19, col ="blue", horiz = TRUE, names.arg= "Event Type")
+```
+
+With respect to health, Tornados also present a the highest economic consequence
+```{r}
+data.econ$total <- with(data.econ, PROPDMG + CROPDMG)
+names(data.econ) <- c("Event", "Property Damage (Millions USD)", "Crop Damage (Millions USD)", "Total Damage (Millions USD)")
+kable(data.econ)
+```
